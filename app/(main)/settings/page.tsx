@@ -8,6 +8,7 @@ import { MainRootLayout } from "../main-root-layout";
 import { Installations } from "@/components/settings/installations";
 import { Identities } from "@/components/settings/identities";
 import { Profile } from "@/components/settings/profile";
+import { PasswordSettings } from "@/components/settings/password";
 import { DocumentTitle } from "@/components/document-title";
 import { buttonVariants } from "@/components/ui/button";
 import {
@@ -30,6 +31,12 @@ export default async function Page() {
     where: and(
       eq(accountTable.userId, user.id),
       eq(accountTable.providerId, "github"),
+    ),
+  });
+  const credentialAccount = await db.query.accountTable.findFirst({
+    where: and(
+      eq(accountTable.userId, user.id),
+      eq(accountTable.providerId, "credential"),
     ),
   });
   const githubConnected = Boolean(githubAccount);
@@ -77,6 +84,20 @@ export default async function Page() {
                 githubUsername={user.githubUsername}
                 githubManageUrl={githubManageUrl}
               />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Password</CardTitle>
+              <CardDescription>
+                {credentialAccount?.password
+                  ? "Change the password used to sign in with your email address."
+                  : "Set a password to sign in without a temporary email code."}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <PasswordSettings initialHasPassword={Boolean(credentialAccount?.password)} />
             </CardContent>
           </Card>
 

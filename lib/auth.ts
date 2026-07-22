@@ -1,4 +1,5 @@
 import { betterAuth } from "better-auth";
+import { APIError, createAuthMiddleware } from "better-auth/api";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
 import { emailOTP } from "better-auth/plugins";
@@ -11,6 +12,12 @@ import { syncGithubProfileOnLogin } from "@/lib/github-account";
 import { bindCollaboratorInvitesToUser } from "@/lib/collaborator-access";
 import { LoginEmailTemplate } from "@/components/email/login";
 import { render } from "@react-email/render";
+import {
+  hasValidInviteForEmail,
+  userExistsForEmail,
+} from "@/lib/auth-invite-policy";
+
+const INVITE_TOKEN_HEADER = "x-pagescms-invite-token";
 
 export const auth = betterAuth({
   baseURL: getBaseUrl(),
@@ -32,6 +39,12 @@ export const auth = betterAuth({
       updateUserInfoOnLink: true,
       allowUnlinkingAll: false,
     },
+  },
+  emailAndPassword: {
+    enabled: true,
+    disableSignUp: true,
+    minPasswordLength: 12,
+    maxPasswordLength: 128,
   },
   socialProviders: {
     github: {
@@ -153,6 +166,32 @@ export const auth = betterAuth({
       },
     },
   },
+  hooks: {
+    before: createAuthMiddleware(async (ctx) => {
+      if (
+        ctx.path !== "/email-otp/send-verification-otp" &&
+        ctx.path !== "/sign-in/email-otp"
+      ) {
+        return;
+      }
+
+      const email = typeof ctx.body?.email === "string" ? ctx.body.email : "";
+      if (!email || (await userExistsForEmail(email))) return;
+
+      const inviteToken = ctx.headers?.get(INVITE_TOKEN_HEADER);
+      if (await hasValidInviteForEmail(email, inviteToken)) return;
+
+      // Keep the OTP request response generic so it cannot be used to discover
+      // which email addresses already have accounts.
+      if (ctx.path === "/email-otp/send-verification-otp") {
+        return ctx.json({ success: true });
+      }
+
+      throw new APIError("BAD_REQUEST", {
+        message: "Invalid email or verification code.",
+      });
+    }),
+  },
   plugins: [
     nextCookies(),
     emailOTP({
@@ -162,14 +201,18 @@ export const auth = betterAuth({
       storeOTP: "encrypted",
       resendStrategy: "reuse",
       sendVerificationOTP: async ({ email, otp, type }) => {
-        if (type !== "sign-in") return;
+        if (type !== "sign-in" && type !== "forget-password") return;
 
-        const subject = `Your Pages CMS temporary code is ${otp}`;
+        const isPasswordReset = type === "forget-password";
+        const subject = isPasswordReset
+          ? `Your Pages CMS password reset code is ${otp}`
+          : `Your Pages CMS temporary code is ${otp}`;
         const html = await render(
           LoginEmailTemplate({
             email,
             otp,
             preview: subject,
+            purpose: isPasswordReset ? "password-reset" : "sign-in",
           }),
         );
 

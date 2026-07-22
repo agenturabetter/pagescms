@@ -18,10 +18,12 @@ export const LoginEmailTemplate = ({
   email,
   otp,
   preview = "Sign in to Pages CMS",
+  purpose = "sign-in",
 }: {
   email: string;
   otp: string;
   preview?: string;
+  purpose?: "sign-in" | "password-reset";
 }) => {
   const baseUrl = process.env.BASE_URL
     ? process.env.BASE_URL
@@ -55,13 +57,17 @@ export const LoginEmailTemplate = ({
               className="text-[24px] font-semibold p-0 my-[30px] mx-0 text-center tracking-tight"
               style={{ color: emailTheme.foreground }}
             >
-              Sign in to Pages CMS
+              {purpose === "password-reset"
+                ? "Reset your Pages CMS password"
+                : "Sign in to Pages CMS"}
             </Heading>
             <Text
               className="text-[16px] leading-[24px]"
               style={{ color: emailTheme.foreground }}
             >
-              Enter this temporary verification code to continue:
+              {purpose === "password-reset"
+                ? "Enter this temporary verification code to choose a new password:"
+                : "Enter this temporary verification code to continue:"}
             </Text>
             <Section className="text-center mt-[24px] mb-[24px]">
               <pre
@@ -99,7 +105,7 @@ export const LoginEmailTemplate = ({
               >
                 {email}
               </Link>
-              . If you didn&apos;t try to sign in, you can safely ignore this
+              . If you didn&apos;t request this code, you can safely ignore this
               email.
             </Text>
           </Container>
